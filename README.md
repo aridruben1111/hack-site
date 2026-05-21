@@ -72,6 +72,9 @@ on **one port** with no separate frontend process.
 ### Prerequisites
 
 - Docker Engine 20.10+ (and Docker Compose v2, included with modern Docker)
+- On a fresh VPS Docker is **not** installed by default — see
+  [Running on a VPS](#running-on-a-vps) for installation and the important
+  note on Docker bypassing UFW.
 
 ### Option A — Docker Compose (recommended)
 
@@ -97,13 +100,17 @@ Shortcut npm scripts are also provided: `npm run docker:up` and
 # Build the image
 docker build -t recon-tool:latest .
 
-# Run it (foreground, removed on exit)
-docker run --rm -p 5174:5174 recon-tool:latest
+# Run it (foreground, removed on exit). The port is bound to 127.0.0.1 so
+# it is not exposed to the internet — see the UFW note in the VPS section.
+docker run --rm -p 127.0.0.1:5174:5174 recon-tool:latest
 
 # Or run detached with a restart policy
 docker run -d --name recon-tool --restart unless-stopped \
-  -p 5174:5174 recon-tool:latest
+  -p 127.0.0.1:5174:5174 recon-tool:latest
 ```
+
+To reach the container from other machines on a trusted LAN (local dev
+only), drop the `127.0.0.1:` prefix.
 
 Shortcuts: `npm run docker:build` and `npm run docker:run`.
 
@@ -200,11 +207,38 @@ localhost only (`-p 127.0.0.1:5174:5174`) so it is not reachable directly.
 ## Running on a VPS
 
 A step-by-step hardened setup for a fresh VPS (Debian/Ubuntu shown).
+Run the commands as root or with `sudo`.
 
-### 1. Host firewall
+> ### ⚠️ Docker bypasses UFW — read this
+>
+> Docker writes its own `iptables` rules into the `DOCKER` / `DOCKER-USER`
+> chains, which are evaluated **before** UFW's rules. As a result:
+>
+> - A published port like `-p 5174:5174` binds `0.0.0.0` and is reachable
+>   from the internet **even with `ufw default deny incoming`**. UFW does
+>   *not* protect Docker-published ports.
+> - The fix used here is to **bind the container to `127.0.0.1`**
+>   (`127.0.0.1:5174:5174`). Docker then only adds a loopback rule, so the
+>   port is reachable solely from the host — the reverse proxy — and never
+>   directly from outside. `docker-compose.yml` already ships this default.
+>
+> Do **not** rely on UFW alone to keep the container port closed.
 
-Only SSH and HTTP(S) should be reachable. The app container itself is bound
-to localhost and sits behind the reverse proxy.
+### 1. Install Docker
+
+Docker is not installed by default. Use the official convenience script
+(includes the Compose v2 plugin):
+
+```bash
+curl -fsSL https://get.docker.com | sh
+docker --version && docker compose version   # verify
+```
+
+### 2. Host firewall (UFW)
+
+UFW still protects the **host's own** services (SSH, and the nginx ports).
+It does not govern Docker-published ports — that is handled by the
+localhost binding above.
 
 ```bash
 ufw default deny incoming
@@ -215,63 +249,68 @@ ufw allow 443/tcp
 ufw enable
 ```
 
-### 2. Block egress to internal ranges (metadata SSRF defence)
+If you specifically want UFW to manage Docker-published ports, install the
+[`ufw-docker`](https://github.com/chaifeng/ufw-docker) helper — but with the
+`127.0.0.1` binding it is not required here.
+
+### 3. Block egress to internal ranges (metadata SSRF defence)
 
 Most VPS providers expose a cloud-metadata service at `169.254.169.254`
 that can leak credentials. The `recon-security` guard already blocks this
-at the application layer; add a network-layer block as defence-in-depth so
-the container can never reach internal addresses:
+at the application layer; add a network-layer block as defence-in-depth.
+The `DOCKER-USER` chain is intended for exactly this and is **not** flushed
+when Docker restarts (it must exist first, so run this after step 1):
 
 ```bash
-# Drop outbound traffic from Docker containers to internal ranges
-for net in 169.254.0.0/16 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 127.0.0.0/8; do
+for net in 169.254.0.0/16 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16; do
   iptables -I DOCKER-USER -d "$net" -j DROP
 done
-# Persist with iptables-persistent (netfilter-persistent save)
+# Persist across reboots:
+apt install -y iptables-persistent && netfilter-persistent save
 ```
 
-### 3. Deploy the container
+### 4. Deploy the container
 
 ```bash
 git clone <your-repo-url> recon-tool && cd recon-tool
-
-# Edit docker-compose.yml: bind to localhost only and keep the safe defaults
-#   ports:  ["127.0.0.1:5174:5174"]
-#   environment: ALLOW_PRIVATE_TARGETS "false", ENABLE_PORTSCAN "false",
-#                TRUST_PROXY "1"
-
-docker compose up -d --build
 ```
 
-### 4. Reverse proxy + TLS + auth
-
-Install nginx and certbot, create an `.htpasswd` file, and use the nginx
-config from the section above:
+The shipped `docker-compose.yml` already uses the safe defaults: the port
+is bound to `127.0.0.1`, `ENABLE_PORTSCAN` is `false` and
+`ALLOW_PRIVATE_TARGETS` is `false`. Uncomment `TRUST_PROXY: "1"` before
+starting, then:
 
 ```bash
-apt install nginx certbot python3-certbot-nginx apache2-utils
+docker compose up -d --build
+docker compose logs -f      # the server logs its security posture on startup
+```
+
+### 5. Reverse proxy + TLS + auth
+
+Install nginx and certbot, create an `.htpasswd` file, and use the nginx
+config from the [public deployment section](#deploying-publicly--read-this-first):
+
+```bash
+apt install -y nginx certbot python3-certbot-nginx apache2-utils
 htpasswd -c /etc/nginx/.htpasswd youruser
 certbot --nginx -d recon.example.com
 ```
 
-### 5. Recommended posture for a public VPS
+### 6. Recommended posture for a public VPS
 
 | Setting | Value | Why |
 |---|---|---|
+| Container port binding | `127.0.0.1:5174:5174` | Not internet-reachable (UFW does not cover Docker) |
 | `ENABLE_PORTSCAN` | `false` | Outbound scanning breaks most provider AUPs |
 | `ALLOW_PRIVATE_TARGETS` | `false` (unset) | Keep SSRF protection active |
 | `TRUST_PROXY` | `1` | Correct client IP for rate limiting |
-| Container port binding | `127.0.0.1:5174:5174` | Not reachable except via the proxy |
 | Reverse proxy auth | basic auth or SSO | No anonymous access |
+| `DOCKER-USER` egress block | enabled | Defence-in-depth against metadata SSRF |
 
-### 6. Updates & monitoring
+### 7. Updates & monitoring
 
 ```bash
-# Update
-git pull && docker compose up -d --build
-
-# Logs (the server logs its security posture on startup)
-docker compose logs -f
+git pull && docker compose up -d --build   # update
 ```
 
 Consider `fail2ban` on the nginx auth log and unattended host security

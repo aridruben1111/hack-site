@@ -5,8 +5,12 @@ services:
     container_name: recon-tool
     restart: unless-stopped
     ports:
-      # host:container — change the host port to expose elsewhere
-      - "5174:5174"
+      # IMPORTANT: bound to 127.0.0.1 so the port is NOT exposed to the
+      # internet. Docker bypasses UFW — a plain "5174:5174" mapping would be
+      # publicly reachable even with `ufw default deny incoming`.
+      # On a VPS, keep this and put a reverse proxy in front.
+      # For LAN access during local dev, change to "5174:5174".
+      - "127.0.0.1:5174:5174"
     environment:
       NODE_ENV: production
       PORT: "5174"

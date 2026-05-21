@@ -11,7 +11,7 @@
     "build": "npm --prefix client run build",
     "start": "npm --prefix server start",
     "docker:build": "docker build -t recon-tool:latest .",
-    "docker:run": "docker run --rm -p 5174:5174 recon-tool:latest",
+    "docker:run": "docker run --rm -p 127.0.0.1:5174:5174 recon-tool:latest",
     "docker:up": "docker compose up -d --build",
     "docker:down": "docker compose down"
   },
