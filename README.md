@@ -48,7 +48,8 @@ It provides:
 
 > The guard checks at request time and does not pin the resolved IP for the
 > subsequent connection, so it is not a hard defence against DNS rebinding.
-> On a public host, combine it with network-level egress filtering (below).
+> On a public host, combine it with a network-level block of the
+> cloud-metadata IP (see the VPS section).
 
 ## Setup
 
@@ -173,7 +174,8 @@ If you expose this beyond your own machine:
 3. **SSRF protection is on by default** (`recon-security` package) — it
    blocks targets resolving to private/loopback/link-local addresses. Keep
    `ALLOW_PRIVATE_TARGETS` unset. As defence-in-depth, also block egress to
-   private ranges at the network layer (see the VPS section below).
+   the cloud-metadata IP `169.254.169.254` at the network layer (see the
+   VPS section below — do not block whole RFC1918 ranges, it breaks DNS).
 4. **Disable the port scanner** on a public instance (`ENABLE_PORTSCAN=false`)
    — port scanning third parties without authorization is illegal in many
    jurisdictions and usually violates the VPS provider's acceptable-use policy.
