@@ -10,6 +10,14 @@ services:
     environment:
       NODE_ENV: production
       PORT: "5174"
+      # SSRF protection is ON by default — blocks targets that resolve to
+      # private/loopback/link-local/cloud-metadata addresses. Set to "true"
+      # ONLY on a trusted, non-public instance (e.g. internal LAN scanning):
+      ALLOW_PRIVATE_TARGETS: "false"
+      # Port scanner. Disabled here by default: scanning third parties from
+      # a public VPS commonly violates the provider's acceptable-use policy.
+      # Set to "true" only where you are authorized to scan:
+      ENABLE_PORTSCAN: "false"
       # Uncomment when running behind a reverse proxy so rate limiting
       # uses the real client IP (1 = trust first proxy hop):
       # TRUST_PROXY: "1"

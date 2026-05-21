@@ -3,6 +3,7 @@ const fs = require('fs');
 const express = require('express');
 const cors = require('cors');
 const rateLimit = require('express-rate-limit');
+const { ssrfGuard, portscanGate } = require('recon-security');
 
 const dnsRoute = require('./routes/dns');
 const whoisRoute = require('./routes/whois');
@@ -50,19 +51,31 @@ app.use((req, res, next) => {
   next();
 });
 
+// Security controls from the recon-security package.
+// ALLOW_PRIVATE_TARGETS=true disables SSRF blocking (trusted LAN scanning).
+// ENABLE_PORTSCAN=false disables the port scanner (recommended on a public VPS).
+const allowPrivateTargets = process.env.ALLOW_PRIVATE_TARGETS === 'true';
+const portscanEnabled = process.env.ENABLE_PORTSCAN !== 'false';
+const guard = ssrfGuard({ allowPrivate: allowPrivateTargets });
+
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', uptime: process.uptime() });
+  res.json({
+    status: 'ok',
+    uptime: process.uptime(),
+    portscanEnabled,
+    ssrfProtection: !allowPrivateTargets
+  });
 });
 
 app.use('/api/dns', dnsRoute);
 app.use('/api/whois', whoisRoute);
-app.use('/api/ip', ipRoute);
-app.use('/api/portscan', portscanRoute);
-app.use('/api/ssl', sslRoute);
-app.use('/api/headers', headersRoute);
-app.use('/api/tech', techRoute);
-app.use('/api/subdomains', subdomainsRoute);
-app.use('/api/favicon', faviconRoute);
+app.use('/api/ip', guard, ipRoute);
+app.use('/api/portscan', portscanGate({ enabled: portscanEnabled }), guard, portscanRoute);
+app.use('/api/ssl', guard, sslRoute);
+app.use('/api/headers', guard, headersRoute);
+app.use('/api/tech', guard, techRoute);
+app.use('/api/subdomains', guard, subdomainsRoute);
+app.use('/api/favicon', guard, faviconRoute);
 
 // Serve the built React client when present (production / Docker image).
 const clientDist = path.join(__dirname, '..', 'client', 'dist');
@@ -90,4 +103,7 @@ app.use((req, res) => {
 
 app.listen(PORT, () => {
   console.log(`[recon-tool] server listening on http://localhost:${PORT}`);
+  console.log(
+    `[recon-tool] ssrf-protection=${!allowPrivateTargets} portscan=${portscanEnabled}`
+  );
 });

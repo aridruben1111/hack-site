@@ -58,11 +58,15 @@ export default function SubdomainsModule({ target, registerSummary }) {
                     <Copyable value={s.name} label="subdomain" />
                   </td>
                   <td className="py-1.5">
-                    {s.live === true && (
+                    {s.skipped ? (
+                      <span className="badge badge-warn" title={s.skipped}>blocked</span>
+                    ) : s.live === true ? (
                       <span className="badge badge-ok">{s.status}</span>
+                    ) : s.live === false ? (
+                      <span className="badge badge-err">down</span>
+                    ) : (
+                      <span className="text-slate-600 text-xs">—</span>
                     )}
-                    {s.live === false && <span className="badge badge-err">down</span>}
-                    {s.live == null && <span className="text-slate-600 text-xs">—</span>}
                   </td>
                   <td className="py-1.5 text-slate-400 text-xs truncate max-w-xs">
                     {s.issuer || '—'}

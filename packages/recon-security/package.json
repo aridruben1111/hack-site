@@ -1,0 +1,11 @@
+{
+  "name": "recon-security",
+  "version": "1.0.0",
+  "description": "SSRF protection and access controls for ReconTool — blocks targets that resolve to private, loopback, link-local or cloud-metadata addresses, and gates the port scanner.",
+  "main": "index.js",
+  "license": "MIT",
+  "private": true,
+  "engines": {
+    "node": ">=18"
+  }
+}

@@ -1,7 +1,10 @@
 const express = require('express');
+const { isHostSafe } = require('recon-security');
 const { validateTarget, withTimeout } = require('../utils/validate');
 
 const router = express.Router();
+
+const allowPrivateTargets = process.env.ALLOW_PRIVATE_TARGETS === 'true';
 
 async function fetchCrtSh(domain) {
   const url = `https://crt.sh/?q=${encodeURIComponent('%.' + domain)}&output=json`;
@@ -20,6 +23,11 @@ async function fetchCrtSh(domain) {
 }
 
 async function liveCheck(host, timeout = 4000) {
+  // Skip discovered subdomains that resolve to non-public addresses so the
+  // enumeration cannot be used to probe internal hosts.
+  if (!allowPrivateTargets && !(await isHostSafe(host))) {
+    return { live: false, status: null, url: null, skipped: 'non-public address' };
+  }
   const tryUrl = async (url) => {
     try {
       const r = await withTimeout(

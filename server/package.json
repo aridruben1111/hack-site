@@ -12,6 +12,7 @@
     "express": "^4.19.2",
     "express-rate-limit": "^7.4.0",
     "is-valid-domain": "^0.1.6",
+    "recon-security": "file:../packages/recon-security",
     "whois": "^2.14.1"
   },
   "devDependencies": {

@@ -13,8 +13,10 @@ FROM node:20-alpine AS runtime
 ENV NODE_ENV=production
 WORKDIR /app
 
-# Install only server runtime dependencies
+# Install only server runtime dependencies. The recon-security package is a
+# local file: dependency, so it must be present before `npm install` runs.
 COPY server/package.json ./server/
+COPY packages/ ./packages/
 RUN cd server && npm install --omit=dev --no-audit --no-fund
 
 # Copy server source and the built client
