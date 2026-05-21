@@ -1,3 +1,5 @@
+const path = require('path');
+const fs = require('fs');
 const express = require('express');
 const cors = require('cors');
 const rateLimit = require('express-rate-limit');
@@ -15,7 +17,19 @@ const faviconRoute = require('./routes/favicon');
 const app = express();
 const PORT = process.env.PORT || 5174;
 
-app.use(cors({ origin: ['http://localhost:5173', 'http://127.0.0.1:5173'] }));
+// Behind a reverse proxy (nginx, Traefik, Caddy) set TRUST_PROXY so the
+// rate limiter sees the real client IP instead of the proxy address.
+if (process.env.TRUST_PROXY) {
+  const tp = process.env.TRUST_PROXY;
+  app.set('trust proxy', tp === 'true' ? 1 : isNaN(Number(tp)) ? tp : Number(tp));
+}
+
+const corsOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173,http://127.0.0.1:5173')
+  .split(',')
+  .map((o) => o.trim())
+  .filter(Boolean);
+
+app.use(cors({ origin: corsOrigins }));
 app.use(express.json());
 
 const limiter = rateLimit({
@@ -49,6 +63,17 @@ app.use('/api/headers', headersRoute);
 app.use('/api/tech', techRoute);
 app.use('/api/subdomains', subdomainsRoute);
 app.use('/api/favicon', faviconRoute);
+
+// Serve the built React client when present (production / Docker image).
+const clientDist = path.join(__dirname, '..', 'client', 'dist');
+if (fs.existsSync(clientDist)) {
+  app.use(express.static(clientDist));
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api')) return next();
+    res.sendFile(path.join(clientDist, 'index.html'));
+  });
+  console.log('[recon-tool] serving static client from', clientDist);
+}
 
 app.use((err, req, res, next) => {
   console.error('[error]', err.message);

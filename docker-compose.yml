@@ -1,0 +1,23 @@
+services:
+  recon-tool:
+    build: .
+    image: recon-tool:latest
+    container_name: recon-tool
+    restart: unless-stopped
+    ports:
+      # host:container — change the host port to expose elsewhere
+      - "5174:5174"
+    environment:
+      NODE_ENV: production
+      PORT: "5174"
+      # Uncomment when running behind a reverse proxy so rate limiting
+      # uses the real client IP (1 = trust first proxy hop):
+      # TRUST_PROXY: "1"
+      # Only needed if the client is served from a different origin:
+      # CORS_ORIGIN: "https://recon.example.com"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:5174/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s

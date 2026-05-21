@@ -36,18 +36,155 @@ npm run dev
 
 Open <http://localhost:5173>.
 
+## Run with Docker
+
+The recommended way to run a single, self-contained instance. The image is a
+two-stage build: it compiles the React client and then serves it as static
+files from the same Express server that hosts the API — so the whole app runs
+on **one port** with no separate frontend process.
+
+### Prerequisites
+
+- Docker Engine 20.10+ (and Docker Compose v2, included with modern Docker)
+
+### Option A — Docker Compose (recommended)
+
+```bash
+# Build the image and start the container in the background
+docker compose up -d --build
+
+# View logs
+docker compose logs -f
+
+# Stop and remove the container
+docker compose down
+```
+
+The app is then available at <http://localhost:5174>.
+
+Shortcut npm scripts are also provided: `npm run docker:up` and
+`npm run docker:down`.
+
+### Option B — plain Docker
+
+```bash
+# Build the image
+docker build -t recon-tool:latest .
+
+# Run it (foreground, removed on exit)
+docker run --rm -p 5174:5174 recon-tool:latest
+
+# Or run detached with a restart policy
+docker run -d --name recon-tool --restart unless-stopped \
+  -p 5174:5174 recon-tool:latest
+```
+
+Shortcuts: `npm run docker:build` and `npm run docker:run`.
+
+### Environment variables
+
+Copy `.env.example` to `.env` (Compose picks it up automatically) or pass
+variables with `-e` on `docker run`.
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `PORT` | `5174` | Port the server listens on and serves the client from |
+| `TRUST_PROXY` | _unset_ | Set to `1` when behind a reverse proxy so the rate limiter sees the real client IP |
+| `CORS_ORIGIN` | `http://localhost:5173,http://127.0.0.1:5173` | Comma-separated allowed origins. Not needed in the Docker image (client is served same-origin) |
+
+### Changing the exposed port
+
+Edit the `ports` mapping in `docker-compose.yml` (`host:container`), e.g. to
+expose on host port 8080:
+
+```yaml
+    ports:
+      - "8080:5174"
+```
+
+With plain Docker: `docker run -p 8080:5174 recon-tool:latest`.
+
+### Health check
+
+The image defines a `HEALTHCHECK` that polls `/api/health`. Inspect it with:
+
+```bash
+docker ps                  # shows "healthy" in STATUS once up
+docker inspect --format '{{.State.Health.Status}}' recon-tool
+```
+
+### Updating
+
+```bash
+git pull
+docker compose up -d --build   # rebuilds and recreates the container
+```
+
+## Deploying publicly — read this first
+
+Unlike CyberChef (which is 100% static and runs entirely in the visitor's
+browser), ReconTool has an **active backend** that performs DNS lookups, TLS
+connections, HTTP requests and **port scans** against the target you give it.
+On a public, anonymous instance, your server becomes a scanning relay: scans
+originate from *your* server's IP, and the legal/abuse responsibility is yours.
+
+If you expose this beyond your own machine:
+
+1. **Put it behind authentication.** Terminate TLS and require a login at a
+   reverse proxy (nginx/Traefik/Caddy) in front of the container. Restrict
+   access to authorized users only.
+2. **Set `TRUST_PROXY=1`** so the 10 req/min rate limiter keys on the real
+   client IP rather than the proxy address.
+3. **Restrict network egress / mitigate SSRF.** The `headers`, `tech`,
+   `subdomains` and `favicon` modules fetch user-supplied URLs. Block the
+   container from reaching private ranges (`10.0.0.0/8`, `172.16.0.0/12`,
+   `192.168.0.0/16`, `169.254.0.0/16`, `127.0.0.0/8`) at the network layer.
+4. **Consider disabling the port scanner** for an anonymous instance, or keep
+   access limited to a trusted group — port scanning third parties without
+   authorization is illegal in many jurisdictions.
+5. **Keep abuse logs** and monitor for misuse.
+
+Example nginx reverse proxy (TLS + basic auth) in front of the container:
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name recon.example.com;
+    ssl_certificate     /etc/letsencrypt/live/recon.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/recon.example.com/privkey.pem;
+
+    auth_basic           "ReconTool — authorized users only";
+    auth_basic_user_file /etc/nginx/.htpasswd;
+
+    location / {
+        proxy_pass         http://127.0.0.1:5174;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+With this proxy, run the container with `TRUST_PROXY=1` and bind it to
+localhost only (`-p 127.0.0.1:5174:5174`) so it is not reachable directly.
+
 ## Project structure
 
 ```
 recon-tool/
-├── package.json          # root: concurrently runner
+├── package.json          # root: concurrently runner + docker scripts
+├── Dockerfile            # two-stage build (client → static, server runtime)
+├── docker-compose.yml    # one-command deploy
+├── .dockerignore
+├── .env.example          # documented environment variables
 ├── server/
-│   ├── index.js          # express app
+│   ├── index.js          # express app (API + serves built client)
 │   ├── routes/           # one file per module
 │   ├── modules/
 │   └── utils/validate.js # input validation + timeouts
 └── client/
-    ├── vite.config.js    # proxies /api → :5174
+    ├── vite.config.js    # proxies /api → :5174 (dev only)
     ├── tailwind.config.js
     └── src/
         ├── App.jsx
@@ -76,7 +213,10 @@ via the regex/`is-valid-domain` checks in `server/utils/validate.js`.
 
 - Rate limit: 10 requests/min per IP (see `server/index.js`)
 - Request timeouts: 5–8 seconds per external call
-- CORS: localhost-only by default — adjust in `server/index.js` to deploy
+- CORS: localhost-only by default — override with `CORS_ORIGIN`
+- Static client: served automatically when `client/dist` exists (production
+  / Docker); in dev the Vite server proxies `/api` to the backend instead
+- Reverse proxy: set `TRUST_PROXY` so rate limiting uses the real client IP
 
 ## Disclaimer
 
