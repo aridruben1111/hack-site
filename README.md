@@ -253,25 +253,47 @@ If you specifically want UFW to manage Docker-published ports, install the
 [`ufw-docker`](https://github.com/chaifeng/ufw-docker) helper — but with the
 `127.0.0.1` binding it is not required here.
 
-### 3. Block egress to internal ranges (metadata SSRF defence)
+### 3. Block container egress to the cloud-metadata IP
 
-Most VPS providers expose a cloud-metadata service at `169.254.169.254`
-that can leak credentials. The `recon-security` guard already blocks this
-at the application layer; add a network-layer block as defence-in-depth.
-The `DOCKER-USER` chain is intended for exactly this and is **not** flushed
-when Docker restarts (it must exist first, so run this after step 1):
+Most VPS providers expose a metadata service at `169.254.169.254` that can
+leak credentials. The `recon-security` guard already blocks this for recon
+targets; add a narrow network-layer rule as defence-in-depth.
+
+> ⚠️ **Block only the metadata address.** Dropping whole RFC1918 ranges
+> (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`) in `DOCKER-USER` will
+> break container DNS and image builds whenever your resolver — or the
+> route to it — sits in one of those ranges. A single-host `/32` rule does
+> not have that problem.
+>
+> Do **not** use `iptables-persistent` on Debian: it conflicts with `ufw`
+> and `apt` will silently **remove ufw**. Persist with a systemd unit
+> instead.
 
 ```bash
-for net in 169.254.0.0/16 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16; do
-  iptables -I DOCKER-USER -d "$net" -j DROP
-done
-# Persist across reboots:
-apt install -y iptables-persistent && netfilter-persistent save
+# Add the rule now
+iptables -I DOCKER-USER -d 169.254.169.254/32 -j DROP
+
+# Persist it across reboots without iptables-persistent
+cat >/etc/systemd/system/docker-metadata-block.service <<'EOF'
+[Unit]
+Description=Block container egress to the cloud metadata IP
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/sbin/iptables -I DOCKER-USER -d 169.254.169.254/32 -j DROP
+
+[Install]
+WantedBy=multi-user.target
+EOF
+systemctl enable docker-metadata-block.service
 ```
 
 ### 4. Deploy the container
 
 ```bash
+# The default branch holds the code — a plain clone is enough.
 git clone https://github.com/aridruben1111/hack-site.git recon-tool && cd recon-tool
 ```
 
@@ -305,7 +327,7 @@ certbot --nginx -d recon.example.com
 | `ALLOW_PRIVATE_TARGETS` | `false` (unset) | Keep SSRF protection active |
 | `TRUST_PROXY` | `1` | Correct client IP for rate limiting |
 | Reverse proxy auth | basic auth or SSO | No anonymous access |
-| `DOCKER-USER` egress block | enabled | Defence-in-depth against metadata SSRF |
+| `DOCKER-USER` rule | `169.254.169.254/32` DROP only | Defence-in-depth against metadata SSRF (do not block whole RFC1918 ranges — it breaks DNS) |
 
 ### 7. Updates & monitoring
 
@@ -316,6 +338,30 @@ git pull && docker compose up -d --build   # update
 Consider `fail2ban` on the nginx auth log and unattended host security
 updates. Container resource limits can be added under the service in
 `docker-compose.yml` (`mem_limit`, `cpus`).
+
+### Troubleshooting
+
+**Build fails with `npm error EAI_AGAIN ... registry.npmjs.org`** — the
+build container cannot resolve DNS. This is almost always caused by an
+over-broad `DOCKER-USER` DROP rule blocking the path to your DNS resolver.
+Remove the RFC1918 rules and keep only the `/32` metadata rule:
+
+```bash
+iptables -D DOCKER-USER -d 10.0.0.0/8 -j DROP
+iptables -D DOCKER-USER -d 172.16.0.0/12 -j DROP
+iptables -D DOCKER-USER -d 192.168.0.0/16 -j DROP
+iptables -D DOCKER-USER -d 169.254.0.0/16 -j DROP
+iptables -L DOCKER-USER -n --line-numbers   # verify
+docker run --rm alpine nslookup registry.npmjs.org   # should resolve now
+```
+
+**`ufw` disappeared after installing `iptables-persistent`** — they
+conflict on Debian. Reinstall ufw (this removes `iptables-persistent`),
+then persist the metadata rule with the systemd unit from step 3:
+
+```bash
+apt install -y ufw && ufw enable && ufw status
+```
 
 ## Project structure
 
