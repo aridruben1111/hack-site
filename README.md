@@ -272,7 +272,7 @@ apt install -y iptables-persistent && netfilter-persistent save
 ### 4. Deploy the container
 
 ```bash
-git clone <your-repo-url> recon-tool && cd recon-tool
+git clone https://github.com/aridruben1111/hack-site.git recon-tool && cd recon-tool
 ```
 
 The shipped `docker-compose.yml` already uses the safe defaults: the port
