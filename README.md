@@ -208,6 +208,29 @@ localhost only (`-p 127.0.0.1:5174:5174`) so it is not reachable directly.
 
 ## Running on a VPS
 
+### Quick install (interactive script)
+
+The fastest path is the bundled installer. On a fresh Debian/Ubuntu VPS:
+
+```bash
+git clone https://github.com/aridruben1111/hack-site.git recon-tool
+cd recon-tool
+sudo bash scripts/setup-vps.sh
+```
+
+It installs Docker and nginx, builds and starts the container (bound to
+`127.0.0.1`), sets up an HTTP basic-auth login, blocks container egress to
+the cloud-metadata IP, and **asks during the run how to terminate TLS**:
+
+1. **Own domain** — real Let's Encrypt certificate
+2. **DuckDNS hostname** — free, real Let's Encrypt certificate
+3. **Self-signed** — reached via `https://<vps-ip>`, one-time browser warning
+
+For domain / DuckDNS modes, point a DNS record at the VPS *before* running
+the script. The manual steps below document what the script automates.
+
+---
+
 A step-by-step hardened setup for a fresh VPS (Debian/Ubuntu shown).
 Run the commands as root or with `sudo`.
 
@@ -311,13 +334,28 @@ docker compose logs -f      # the server logs its security posture on startup
 
 ### 5. Reverse proxy + TLS + auth
 
-Install nginx and certbot, create an `.htpasswd` file, and use the nginx
-config from the [public deployment section](#deploying-publicly--read-this-first):
+`scripts/setup-vps.sh` (see *Quick install* above) automates this. To do it
+by hand, mind the order — request the certificate **last**, because
+`certbot --nginx` needs a working HTTP server block first:
 
 ```bash
 apt install -y nginx certbot python3-certbot-nginx apache2-utils
-htpasswd -c /etc/nginx/.htpasswd youruser
-certbot --nginx -d recon.example.com
+
+# 1. Create the login (use your own username, not "youruser")
+htpasswd -c /etc/nginx/.htpasswd <your-username>
+
+# 2. Create an HTTP-only site block for YOUR real hostname. Replace
+#    recon.example.com — Let's Encrypt rejects the reserved example.com.
+#    The block needs: listen 80; server_name <host>; and the proxy_pass +
+#    auth_basic location from the public-deployment section above.
+
+# 3. Enable it and reload
+ln -sf /etc/nginx/sites-available/recon-tool /etc/nginx/sites-enabled/
+nginx -t && systemctl reload nginx
+
+# 4. Request the certificate — certbot rewrites the block to add HTTPS.
+#    A DNS A record for <host> must already point at this VPS.
+certbot --nginx -d recon.yourdomain.com
 ```
 
 ### 6. Recommended posture for a public VPS
