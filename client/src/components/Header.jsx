@@ -1,19 +1,23 @@
 import { useEffect, useState } from 'react';
 import { useToast } from '../hooks/useToast.jsx';
+import { getEntries, subscribe } from '../lib/scanHistory';
 
 const THEME_KEY = 'recon-tool:theme';
 
-export default function Header({ target }) {
+export default function Header({ target, onOpenHistory }) {
   const [theme, setTheme] = useState(() => {
     if (typeof window === 'undefined') return 'dark';
     return localStorage.getItem(THEME_KEY) || 'dark';
   });
+  const [historyCount, setHistoryCount] = useState(getEntries().length);
   const { push } = useToast();
 
   useEffect(() => {
     document.body.classList.toggle('light', theme === 'light');
     localStorage.setItem(THEME_KEY, theme);
   }, [theme]);
+
+  useEffect(() => subscribe(() => setHistoryCount(getEntries().length)), []);
 
   const share = async () => {
     const url = `${window.location.origin}/?target=${encodeURIComponent(target || '')}`;
@@ -40,6 +44,14 @@ export default function Header({ target }) {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <button onClick={onOpenHistory} className="btn" title="Scan history">
+            History
+            {historyCount > 0 && (
+              <span className="ml-1 px-1.5 rounded-full bg-accent text-slate-950 text-[10px] font-bold">
+                {historyCount}
+              </span>
+            )}
+          </button>
           {target && (
             <button onClick={share} className="btn" title="Copy share link">
               <span>⤴</span> Share

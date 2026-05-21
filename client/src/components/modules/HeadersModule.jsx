@@ -2,12 +2,12 @@ import { useEffect } from 'react';
 import { useApi } from '../../hooks/useApi.js';
 import { Spinner, ErrorBox, ExportButton, Section, Copyable } from '../Common.jsx';
 
-export default function HeadersModule({ target, registerSummary }) {
-  const { data, loading, error, run } = useApi('headers');
+export default function HeadersModule({ target, registerSummary, initialData = null }) {
+  const { data, loading, error, run } = useApi('headers', initialData);
 
   useEffect(() => {
-    if (target) run(target).catch(() => {});
-  }, [target, run]);
+    if (target && !initialData) run(target).catch(() => {});
+  }, [target, run, initialData]);
 
   useEffect(() => {
     if (!registerSummary) return;

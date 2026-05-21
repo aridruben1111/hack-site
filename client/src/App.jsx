@@ -4,6 +4,7 @@ import SearchBar from './components/SearchBar.jsx';
 import Disclaimer from './components/Disclaimer.jsx';
 import Dashboard from './components/Dashboard.jsx';
 import FaviconPreview from './components/FaviconPreview.jsx';
+import HistoryPanel from './components/HistoryPanel.jsx';
 import { ToastProvider } from './hooks/useToast.jsx';
 import DnsModule from './components/modules/DnsModule.jsx';
 import WhoisModule from './components/modules/WhoisModule.jsx';
@@ -29,6 +30,9 @@ function AppShell() {
   const [target, setTarget] = useState('');
   const [activeTab, setActiveTab] = useState('dns');
   const [summaries, setSummaries] = useState({});
+  const [historyOpen, setHistoryOpen] = useState(false);
+  // When set, the active module renders this saved result instead of fetching.
+  const [viewing, setViewing] = useState(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -38,10 +42,24 @@ function AppShell() {
 
   const handleSubmit = useCallback((next) => {
     setSummaries({});
+    setViewing(null);
     setTarget(next);
     const params = new URLSearchParams(window.location.search);
     params.set('target', next);
     window.history.replaceState(null, '', `?${params.toString()}`);
+  }, []);
+
+  const selectTab = useCallback((id) => {
+    setViewing(null);
+    setActiveTab(id);
+  }, []);
+
+  const openHistoryEntry = useCallback((entry) => {
+    setHistoryOpen(false);
+    setSummaries({});
+    setViewing(entry);
+    setActiveTab(entry.module);
+    setTarget(entry.target);
   }, []);
 
   const register = useMemo(() => {
@@ -52,12 +70,17 @@ function AppShell() {
     return map;
   }, []);
 
-  const Active = MODULES.find((m) => m.id === activeTab)?.component;
+  const activeModule = MODULES.find((m) => m.id === activeTab);
+  const Active = activeModule?.component;
 
   return (
     <div className="min-h-screen">
       <Disclaimer />
-      <Header target={target} />
+      <Header target={target} onOpenHistory={() => setHistoryOpen(true)} />
+
+      {historyOpen && (
+        <HistoryPanel onOpen={openHistoryEntry} onClose={() => setHistoryOpen(false)} />
+      )}
 
       <main className="max-w-6xl mx-auto px-4 py-6 space-y-4">
         <div className="card">
@@ -78,7 +101,7 @@ function AppShell() {
           </p>
         </div>
 
-        {target && <Dashboard target={target} summaries={summaries} />}
+        {target && !viewing && <Dashboard target={target} summaries={summaries} />}
 
         {target && (
           <div className="card !p-0 overflow-hidden">
@@ -87,7 +110,7 @@ function AppShell() {
                 {MODULES.map((m) => (
                   <button
                     key={m.id}
-                    onClick={() => setActiveTab(m.id)}
+                    onClick={() => selectTab(m.id)}
                     className={`tab ${activeTab === m.id ? 'active' : ''}`}
                     title={m.hint}
                   >
@@ -97,9 +120,26 @@ function AppShell() {
                 ))}
               </div>
             </div>
+
+            {viewing && (
+              <div className="flex items-center justify-between gap-2 px-4 py-2 bg-amber-950/20 border-b border-amber-800/40 text-xs">
+                <span className="text-amber-200">
+                  Saved result · {activeModule?.label} · {new Date(viewing.ts).toLocaleString()}
+                </span>
+                <button onClick={() => setViewing(null)} className="btn !py-1">
+                  Run live scan
+                </button>
+              </div>
+            )}
+
             <div className="p-4">
               {Active && (
-                <Active key={`${activeTab}-${target}`} target={target} registerSummary={register[activeTab]} />
+                <Active
+                  key={viewing ? `view-${viewing.id}` : `${activeTab}-${target}`}
+                  target={target}
+                  registerSummary={viewing ? undefined : register[activeTab]}
+                  initialData={viewing ? viewing.data : null}
+                />
               )}
             </div>
           </div>

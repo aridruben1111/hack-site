@@ -11,12 +11,12 @@ const icon = new L.DivIcon({
   iconAnchor: [9, 9]
 });
 
-export default function IpModule({ target, registerSummary }) {
-  const { data, loading, error, run } = useApi('ip');
+export default function IpModule({ target, registerSummary, initialData = null }) {
+  const { data, loading, error, run } = useApi('ip', initialData);
 
   useEffect(() => {
-    if (target) run(target).catch(() => {});
-  }, [target, run]);
+    if (target && !initialData) run(target).catch(() => {});
+  }, [target, run, initialData]);
 
   useEffect(() => {
     if (!registerSummary) return;

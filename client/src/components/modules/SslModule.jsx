@@ -11,12 +11,12 @@ const gradeColor = {
   F: 'badge-err'
 };
 
-export default function SslModule({ target, registerSummary }) {
-  const { data, loading, error, run } = useApi('ssl');
+export default function SslModule({ target, registerSummary, initialData = null }) {
+  const { data, loading, error, run } = useApi('ssl', initialData);
 
   useEffect(() => {
-    if (target) run(target).catch(() => {});
-  }, [target, run]);
+    if (target && !initialData) run(target).catch(() => {});
+  }, [target, run, initialData]);
 
   useEffect(() => {
     if (!registerSummary) return;

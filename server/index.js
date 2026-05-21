@@ -33,18 +33,27 @@ const corsOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173,http://12
 app.use(cors({ origin: corsOrigins }));
 app.use(express.json());
 
-const limiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 10,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: {
-    error: 'Rate limit exceeded. Max 10 requests per minute.',
-    disclaimer: 'Gebruik deze tool alleen op systemen waarvoor je toestemming hebt.'
-  }
-});
+// Rate limiting. RATE_LIMIT_PER_MIN controls the per-IP limit; set it to 0
+// to disable rate limiting entirely. Defaults to 10 requests/minute.
+const rateLimitMax =
+  process.env.RATE_LIMIT_PER_MIN !== undefined
+    ? parseInt(process.env.RATE_LIMIT_PER_MIN, 10)
+    : 10;
+const rateLimitEnabled = Number.isFinite(rateLimitMax) && rateLimitMax > 0;
 
-app.use('/api/', limiter);
+if (rateLimitEnabled) {
+  const limiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: rateLimitMax,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: {
+      error: `Rate limit exceeded. Max ${rateLimitMax} requests per minute.`,
+      disclaimer: 'Gebruik deze tool alleen op systemen waarvoor je toestemming hebt.'
+    }
+  });
+  app.use('/api/', limiter);
+}
 
 app.use((req, res, next) => {
   res.setHeader('X-Recon-Disclaimer', 'Use only on systems you are authorized to test.');
@@ -63,7 +72,8 @@ app.get('/api/health', (req, res) => {
     status: 'ok',
     uptime: process.uptime(),
     portscanEnabled,
-    ssrfProtection: !allowPrivateTargets
+    ssrfProtection: !allowPrivateTargets,
+    rateLimit: rateLimitEnabled ? `${rateLimitMax}/min` : 'disabled'
   });
 });
 
@@ -104,6 +114,7 @@ app.use((req, res) => {
 app.listen(PORT, () => {
   console.log(`[recon-tool] server listening on http://localhost:${PORT}`);
   console.log(
-    `[recon-tool] ssrf-protection=${!allowPrivateTargets} portscan=${portscanEnabled}`
+    `[recon-tool] ssrf-protection=${!allowPrivateTargets} portscan=${portscanEnabled} ` +
+      `rate-limit=${rateLimitEnabled ? rateLimitMax + '/min' : 'disabled'}`
   );
 });

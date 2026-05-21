@@ -2,13 +2,13 @@ import { useEffect, useState } from 'react';
 import { useApi } from '../../hooks/useApi.js';
 import { Spinner, ErrorBox, ExportButton, Section } from '../Common.jsx';
 
-export default function PortScanModule({ target, registerSummary }) {
-  const { data, loading, error, run } = useApi('portscan');
-  const [confirmed, setConfirmed] = useState(false);
+export default function PortScanModule({ target, registerSummary, initialData = null }) {
+  const { data, loading, error, run } = useApi('portscan', initialData);
+  const [confirmed, setConfirmed] = useState(!!initialData);
 
   useEffect(() => {
-    if (target && confirmed) run(target).catch(() => {});
-  }, [target, run, confirmed]);
+    if (target && confirmed && !initialData) run(target).catch(() => {});
+  }, [target, run, confirmed, initialData]);
 
   useEffect(() => {
     if (!registerSummary) return;

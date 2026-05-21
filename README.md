@@ -21,9 +21,10 @@ pentesting and education.
 ## Stack
 
 - Frontend: React 18 + Vite + TailwindCSS (dark theme, light toggle)
-- Backend: Node.js + Express with rate limiting (10 req/min/IP)
+- Backend: Node.js + Express with configurable rate limiting
 - Security: `recon-security` local package — SSRF protection + access controls
-- No database — results live in component state + localStorage history
+- No database — completed scan results are kept in a localStorage history
+  (open the **History** panel from the header to review or reopen them)
 
 ## Security package (`recon-security`)
 
@@ -126,7 +127,8 @@ variables with `-e` on `docker run`.
 | `TRUST_PROXY` | _unset_ | Set to `1` when behind a reverse proxy so the rate limiter sees the real client IP |
 | `CORS_ORIGIN` | `http://localhost:5173,http://127.0.0.1:5173` | Comma-separated allowed origins. Not needed in the Docker image (client is served same-origin) |
 | `ALLOW_PRIVATE_TARGETS` | `false` | When `true`, disables SSRF blocking so private/loopback targets are allowed. Use only on a trusted, non-public instance |
-| `ENABLE_PORTSCAN` | `true` | Set to `false` to disable the `/api/portscan` route (returns 403). Recommended on a public VPS |
+| `ENABLE_PORTSCAN` | `true` | Set to `false` to disable the `/api/portscan` route (returns 403). Consider disabling on an anonymous public instance |
+| `RATE_LIMIT_PER_MIN` | `10` | Per-IP request limit per minute. Set to `0` to disable rate limiting |
 
 ### Changing the exposed port
 
@@ -322,10 +324,11 @@ systemctl enable docker-metadata-block.service
 git clone https://github.com/aridruben1111/hack-site.git recon-tool && cd recon-tool
 ```
 
-The shipped `docker-compose.yml` already uses the safe defaults: the port
-is bound to `127.0.0.1`, `ENABLE_PORTSCAN` is `false` and
-`ALLOW_PRIVATE_TARGETS` is `false`. Uncomment `TRUST_PROXY: "1"` before
-starting, then:
+The shipped `docker-compose.yml` binds the port to `127.0.0.1` and keeps
+`ALLOW_PRIVATE_TARGETS` off (SSRF protection on). The port scanner is
+enabled and rate limiting is off — review `ENABLE_PORTSCAN` and
+`RATE_LIMIT_PER_MIN` if the instance will be shared or anonymous. Uncomment
+`TRUST_PROXY: "1"` before starting, then:
 
 ```bash
 docker compose up -d --build
@@ -363,7 +366,8 @@ certbot --nginx -d recon.yourdomain.com
 | Setting | Value | Why |
 |---|---|---|
 | Container port binding | `127.0.0.1:5174:5174` | Not internet-reachable (UFW does not cover Docker) |
-| `ENABLE_PORTSCAN` | `false` | Outbound scanning breaks most provider AUPs |
+| `ENABLE_PORTSCAN` | `true` behind auth, `false` if anonymous | Only scan with authorization; AUP risk on shared/anonymous instances |
+| `RATE_LIMIT_PER_MIN` | `0` for a single trusted user, else `10`+ | Throttle abuse on shared/anonymous instances |
 | `ALLOW_PRIVATE_TARGETS` | `false` (unset) | Keep SSRF protection active |
 | `TRUST_PROXY` | `1` | Correct client IP for rate limiting |
 | Reverse proxy auth | basic auth or SSO | No anonymous access |

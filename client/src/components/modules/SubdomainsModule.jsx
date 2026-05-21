@@ -2,13 +2,13 @@ import { useEffect, useState } from 'react';
 import { useApi } from '../../hooks/useApi.js';
 import { Spinner, ErrorBox, ExportButton, Section, Copyable } from '../Common.jsx';
 
-export default function SubdomainsModule({ target, registerSummary }) {
-  const { data, loading, error, run } = useApi('subdomains');
+export default function SubdomainsModule({ target, registerSummary, initialData = null }) {
+  const { data, loading, error, run } = useApi('subdomains', initialData);
   const [filter, setFilter] = useState('');
 
   useEffect(() => {
-    if (target) run(target).catch(() => {});
-  }, [target, run]);
+    if (target && !initialData) run(target).catch(() => {});
+  }, [target, run, initialData]);
 
   useEffect(() => {
     if (!registerSummary) return;

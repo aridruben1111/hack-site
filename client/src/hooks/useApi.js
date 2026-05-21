@@ -1,7 +1,8 @@
 import { useCallback, useState } from 'react';
+import { addEntry } from '../lib/scanHistory';
 
-export function useApi(endpoint) {
-  const [data, setData] = useState(null);
+export function useApi(endpoint, initialData = null) {
+  const [data, setData] = useState(initialData);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -16,6 +17,7 @@ export function useApi(endpoint) {
         const body = await resp.json();
         if (!resp.ok) throw new Error(body.error || body.message || `HTTP ${resp.status}`);
         setData(body);
+        addEntry({ module: endpoint, target, data: body });
         return body;
       } catch (err) {
         setError(err.message);
