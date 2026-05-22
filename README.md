@@ -15,7 +15,8 @@ pentesting and education.
 - **DNS** — A/AAAA/MX/NS/TXT/CNAME/SOA with SPF/DKIM/DMARC detection
 - **WHOIS** — registrar, dates, name servers, parsed fields
 - **IP** — geolocation, ASN, ISP via ip-api.com + Leaflet map
-- **Port scan** — top 20 TCP ports (requires explicit confirmation)
+- **Port scan** — TCP scan with profiles (top 20 / ~120 common / custom
+  ports & ranges), banner grabbing, latency and service category per port
 - **SSL/TLS** — certificate inspection with A–F grading
 - **HTTP headers** — security header analysis + recommendations
 - **Tech detection** — CMS, frameworks, servers, CDNs, analytics
@@ -448,7 +449,7 @@ via the regex/`is-valid-domain` checks in `server/utils/validate.js`.
 | `GET /api/dns` | `target=domain` | Resolves all common record types |
 | `GET /api/whois` | `target=domain\|ip` | Parses raw WHOIS output |
 | `GET /api/ip` | `target=ip\|domain` | Uses ip-api.com (free, no key) |
-| `GET /api/portscan` | `target=ip\|domain` | TCP connect on 20 ports, 1.5s timeout |
+| `GET /api/portscan` | `target=ip\|domain`, `profile=top20\|common\|custom`, `ports=22,80,8000-8100`, `banners=0\|1` | TCP connect scan; banner grab + latency per open port (custom max 1024 ports) |
 | `GET /api/ssl` | `target=domain&port=443` | TLS cert + cipher grading |
 | `GET /api/headers` | `target=domain` | Security header scoring |
 | `GET /api/tech` | `target=domain` | Regex signatures on body + headers |
