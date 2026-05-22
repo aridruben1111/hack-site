@@ -4,13 +4,13 @@ const { validateTarget } = require('../utils/validate');
 
 const router = express.Router();
 
-function inspectCert(host, port = 443, timeout = 7000) {
+function inspectCert(host, servername, port = 443, timeout = 7000) {
   return new Promise((resolve, reject) => {
     const socket = tls.connect(
       {
         host,
         port,
-        servername: host,
+        servername,
         rejectUnauthorized: false,
         timeout
       },
@@ -96,7 +96,10 @@ router.get('/', async (req, res) => {
   const port = Math.min(Math.max(parseInt(req.query.port, 10) || 443, 1), 65535);
 
   try {
-    const info = await inspectCert(v.value, port);
+    // Connect to the address the SSRF guard already validated (no TOCTOU
+    // re-resolution); keep the original target as the TLS servername.
+    const connectHost = (req.reconResolved && req.reconResolved[0]) || v.value;
+    const info = await inspectCert(connectHost, v.value, port);
     const cert = info.cert;
     const sans = (cert.subjectaltname || '')
       .split(',')

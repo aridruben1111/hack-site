@@ -268,10 +268,16 @@ router.get('/', async (req, res) => {
 
   try {
     if (!isIP(host)) {
-      const addresses = await dns.resolve4(host);
-      if (!addresses.length) throw new Error('No A records');
+      // Prefer the address the SSRF guard already validated so the scan
+      // connects to exactly what was checked (no TOCTOU re-resolution).
+      let address = req.reconResolved && req.reconResolved[0];
+      if (!address) {
+        const addresses = await dns.resolve4(host);
+        if (!addresses.length) throw new Error('No A records');
+        address = addresses[0];
+      }
       resolvedFrom = host;
-      host = addresses[0];
+      host = address;
     }
 
     const started = Date.now();

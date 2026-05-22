@@ -23,10 +23,15 @@ router.get('/', async (req, res) => {
 
   try {
     if (!isIP(ip)) {
-      const addresses = await withTimeout(dns.resolve4(ip), 5000, 'dns.resolve4');
-      if (!addresses || !addresses.length) throw new Error('No A records found');
+      // Use the address already validated by the SSRF guard when available.
+      let address = req.reconResolved && req.reconResolved[0];
+      if (!address) {
+        const addresses = await withTimeout(dns.resolve4(ip), 5000, 'dns.resolve4');
+        if (!addresses || !addresses.length) throw new Error('No A records found');
+        address = addresses[0];
+      }
       resolvedFrom = ip;
-      ip = addresses[0];
+      ip = address;
     }
 
     const geo = await fetchGeo(ip);
