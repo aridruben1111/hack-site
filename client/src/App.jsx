@@ -83,7 +83,7 @@ function AppShell() {
       )}
 
       <main className="max-w-6xl mx-auto px-4 py-6 space-y-4">
-        <div className="card">
+        <div className="card relative z-20">
           <div className="flex items-center gap-2 mb-3">
             {target && <FaviconPreview target={target} />}
             <h1 className="text-base font-semibold">
