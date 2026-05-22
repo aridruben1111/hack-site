@@ -149,6 +149,8 @@ function AppShell() {
           ReconTool — for authorized security research only.
           <br />
           Gebruik deze tool alleen op systemen waarvoor je toestemming hebt.
+          <br />
+          Vibe-coded project — built rapidly with AI assistance, use at your own risk.
         </footer>
       </main>
     </div>

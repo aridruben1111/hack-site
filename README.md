@@ -6,6 +6,10 @@ pentesting and education.
 > **Legal:** use this tool only on systems you are explicitly authorized to
 > test. Unauthorized scanning is illegal in many jurisdictions.
 
+> **Vibe-coded:** this project was built rapidly and largely with AI
+> assistance ("vibe coding"). Review the code yourself before relying on it
+> in production.
+
 ## Modules
 
 - **DNS** — A/AAAA/MX/NS/TXT/CNAME/SOA with SPF/DKIM/DMARC detection

@@ -30,10 +30,15 @@ export default function Disclaimer() {
           Gebruik alleen op systemen waarvoor je expliciete toestemming hebt. Ongeautoriseerde
           toegang of port scanning is in veel rechtsgebieden strafbaar.
         </p>
-        <p className="text-xs text-slate-500 mb-4">
+        <p className="text-xs text-slate-500 mb-3">
           Door op &laquo;Ik begrijp het en ga akkoord&raquo; te klikken bevestig je dat je
           verantwoordelijk omgaat met deze tool en dat de eigenaar van deze app of de auteur
           van deze software niet aansprakelijk is voor onrechtmatig gebruik.
+        </p>
+        <p className="text-xs text-amber-300/80 mb-4 leading-relaxed">
+          Let op: dit is een &laquo;vibe-coded&raquo; project &mdash; snel en grotendeels
+          met AI-assistentie gebouwd. Controleer de code zelf voordat je er in een
+          productieomgeving op vertrouwt.
         </p>
         <button onClick={accept} className="btn btn-primary w-full justify-center py-2">
           Ik begrijp het en ga akkoord
