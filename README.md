@@ -121,6 +121,22 @@ only), drop the `127.0.0.1:` prefix.
 
 Shortcuts: `npm run docker:build` and `npm run docker:run`.
 
+### Option C — prebuilt image (no clone, no build)
+
+A published image is available on Docker Hub as `arid69/recon-tool`, built
+and pushed automatically by the [`Publish Docker image`](.github/workflows/docker-publish.yml)
+GitHub Actions workflow. To run it you only need one file —
+[`docker-compose.prebuilt.yml`](docker-compose.prebuilt.yml):
+
+```bash
+# In an empty folder:
+curl -O https://raw.githubusercontent.com/aridruben1111/hack-site/claude/osint-recon-tool-QCGAi/docker-compose.prebuilt.yml
+docker compose -f docker-compose.prebuilt.yml up -d
+```
+
+This pulls `arid69/recon-tool:latest` — no repository checkout and no local
+build. The app is then on <http://127.0.0.1:5174>.
+
 ### Environment variables
 
 Copy `.env.example` to `.env` (Compose picks it up automatically) or pass

@@ -1,0 +1,39 @@
+# Standalone ReconTool deployment — uses the prebuilt image from Docker Hub,
+# so no repository clone and no local build are needed.
+#
+# Usage:
+#   1. Save this file as docker-compose.yml in an empty folder
+#      (or run: docker compose -f docker-compose.prebuilt.yml up -d)
+#   2. docker compose up -d
+#
+# The app is then on http://127.0.0.1:5174. The port is bound to localhost;
+# put a reverse proxy with TLS + auth in front for public access — see the
+# project README ("Running on a VPS").
+
+services:
+  recon-tool:
+    image: arid69/recon-tool:latest
+    container_name: recon-tool
+    restart: unless-stopped
+    pull_policy: always
+    ports:
+      # Bound to 127.0.0.1 — not exposed to the internet (Docker bypasses UFW).
+      # For LAN access during local testing, change to "5174:5174".
+      - "127.0.0.1:5174:5174"
+    environment:
+      NODE_ENV: production
+      PORT: "5174"
+      # SSRF protection on — blocks private/loopback/metadata targets.
+      ALLOW_PRIVATE_TARGETS: "false"
+      # Port scanner enabled. Only scan systems you are authorized to test.
+      ENABLE_PORTSCAN: "true"
+      # Per-IP rate limit per minute; "0" disables it. Set a value if shared.
+      RATE_LIMIT_PER_MIN: "0"
+      # Uncomment when running behind a reverse proxy:
+      # TRUST_PROXY: "1"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:5174/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
