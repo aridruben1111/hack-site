@@ -31,9 +31,31 @@ services:
       RATE_LIMIT_PER_MIN: "0"
       # Uncomment when running behind a reverse proxy:
       # TRUST_PROXY: "1"
+    labels:
+      # Watchtower (started with `--profile autoupdate`) only updates
+      # containers that carry this label, so it can't accidentally touch
+      # anything else on the host.
+      com.centurylinklabs.watchtower.enable: "true"
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:5174/api/health"]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 5s
+
+  # Optional auto-updater. Only starts with `--profile autoupdate`.
+  # Polls Docker Hub every hour and replaces the recon-tool container as
+  # soon as a newer image is published. Requires the host Docker socket.
+  watchtower:
+    image: containrrr/watchtower:latest
+    container_name: recon-watchtower
+    restart: unless-stopped
+    profiles: ["autoupdate"]
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      WATCHTOWER_LABEL_ENABLE: "true"
+      WATCHTOWER_CLEANUP: "true"
+      WATCHTOWER_POLL_INTERVAL: "3600"
+      WATCHTOWER_NO_STARTUP_MESSAGE: "true"
+

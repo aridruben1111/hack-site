@@ -137,6 +137,33 @@ docker compose -f docker-compose.prebuilt.yml up -d
 This pulls `arid69/recon-tool:latest` — no repository checkout and no local
 build. The app is then on <http://127.0.0.1:5174>.
 
+#### Automatic updates with Watchtower
+
+`docker-compose.prebuilt.yml` includes a [Watchtower](https://containrrr.dev/watchtower/)
+service under the `autoupdate` profile. Start it with the profile enabled to
+poll Docker Hub every hour and recreate the container as soon as a newer
+image is published:
+
+```bash
+docker compose -f docker-compose.prebuilt.yml --profile autoupdate up -d
+```
+
+Watchtower only touches containers carrying the
+`com.centurylinklabs.watchtower.enable=true` label, so it cannot
+accidentally update anything else on the host.
+
+#### Migrating an existing build-based deployment
+
+If you already have the source-built stack running (the project's
+`docker-compose.yml` with `build: .`), use the bundled script to switch over
+in one go — it stops the old stack, removes the locally-built image, pulls
+the published image, and starts it with auto-update enabled. Your
+`docker-compose.override.yml` (e.g. `TRUST_PROXY: "1"`) is preserved:
+
+```bash
+sudo bash scripts/switch-to-prebuilt.sh
+```
+
 ### Environment variables
 
 Copy `.env.example` to `.env` (Compose picks it up automatically) or pass
