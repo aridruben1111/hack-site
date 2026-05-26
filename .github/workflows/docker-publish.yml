@@ -21,17 +21,40 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      # Whitespace pasted into the GitHub secret textarea (e.g. a trailing
+      # newline) makes docker login fail with "malformed HTTP Authorization
+      # header". Trim both secrets before use so the workflow is robust
+      # against a slightly messy paste.
+      - name: Resolve image name
+        id: image
+        env:
+          DH_USER: ${{ secrets.DOCKERHUB_USERNAME }}
+        run: |
+          user=$(printf '%s' "$DH_USER" | tr -d '[:space:]')
+          if [ -z "$user" ]; then
+            echo "DOCKERHUB_USERNAME secret is empty or whitespace-only." >&2
+            exit 1
+          fi
+          echo "name=${user}/recon-tool" >> "$GITHUB_OUTPUT"
+
       - name: Log in to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+        env:
+          DH_USER: ${{ secrets.DOCKERHUB_USERNAME }}
+          DH_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          user=$(printf '%s' "$DH_USER" | tr -d '[:space:]')
+          token=$(printf '%s' "$DH_TOKEN" | tr -d '[:space:]')
+          if [ -z "$user" ] || [ -z "$token" ]; then
+            echo "DOCKERHUB_USERNAME or DOCKERHUB_TOKEN is empty after trimming." >&2
+            exit 1
+          fi
+          printf '%s' "$token" | docker login -u "$user" --password-stdin docker.io
 
       - name: Derive image tags
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ secrets.DOCKERHUB_USERNAME }}/recon-tool
+          images: ${{ steps.image.outputs.name }}
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
             type=ref,event=tag
